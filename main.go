@@ -28,8 +28,17 @@ func tallyHandle(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d", curr)
 }
 
+func currHandle(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	curr := count
+	mu.Unlock()
+
+	fmt.Fprintf(w, "%d", curr)
+}
+
 func main() {
 	http.HandleFunc("/tally", tallyHandle)
+	http.HandleFunc("/curr", currHandle)
 	slog.Info("Server-",
 		"port", port,
 		"status", "ready",
