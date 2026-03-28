@@ -86,6 +86,29 @@ func currHandle(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d", curr)
 }
 
+func midnightReset() {
+	for {
+		now := time.Now()
+		next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+		time.Sleep(time.Until(next))
+
+		mu.Lock()
+		curr := count
+		count = 0
+
+		_, err := db.Exec(
+			"INSERT INTO history (total, created_at, ip_address) VALUES (?, ?, ?)",
+			curr, time.Now(), "MIDNIGHT_RESET",
+		)
+		if err != nil {
+			slog.Error("Midnight reset: database insert failed", "error", err)
+		} else {
+			slog.Info("Midnight reset complete", "saved_total", curr, "new_count", 0)
+		}
+		mu.Unlock()
+	}
+}
+
 func main() {
 	var err error
 	db, err = sql.Open("sqlite", "tally.db")
@@ -127,6 +150,8 @@ func main() {
 		"port", port,
 		"status", "ready",
 	)
+
+	go midnightReset()
 
 	err = (http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 	if err != nil {
