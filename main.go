@@ -19,13 +19,45 @@ var (
 	db    *sql.DB
 )
 
-func tallyHandle(w http.ResponseWriter, r *http.Request) {
+// Roll increment/decrement into one
+func incrementHandle(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	mu.Lock()
 	count++
 	curr := count
 	slog.Info("Tally incremented",
+		"curr_count", curr,
+		"remote_addr", r.RemoteAddr,
+	)
+
+	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address) VALUES (?, ?, ?)",
+		curr, time.Now(), r.RemoteAddr)
+	if err != nil {
+		slog.Error("Database insert failed", "error", err)
+	} else {
+		slog.Info("Database sync complete", "saved_total", curr)
+	}
+	mu.Unlock()
+
+	fmt.Fprintf(w, "%d", curr)
+}
+
+func decrementHandle(w http.ResponseWriter, r *http.Request) {
+	var err error
+
+	mu.Lock()
+	count--
+
+	if count < 0 {
+		slog.Error("Count < 0", "count", count)
+		count = 0
+		mu.Unlock()
+		return
+	}
+
+	curr := count
+	slog.Info("Tally decremented",
 		"curr_count", curr,
 		"remote_addr", r.RemoteAddr,
 	)
@@ -88,7 +120,8 @@ func main() {
 		slog.Info("Found history")
 	}
 
-	http.HandleFunc("/tally", tallyHandle)
+	http.HandleFunc("/increment", incrementHandle)
+	http.HandleFunc("/decrement", decrementHandle)
 	http.HandleFunc("/curr", currHandle)
 	slog.Info("Server-",
 		"port", port,
