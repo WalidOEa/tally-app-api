@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 var (
 	count int
+	limit int
 	mu    sync.Mutex
 	port  = 5050
 	db    *sql.DB
@@ -22,17 +24,25 @@ var (
 // Roll increment/decrement into one
 func incrementHandle(w http.ResponseWriter, r *http.Request) {
 	var err error
+	var is_exceed_limit int
 
 	mu.Lock()
 	count++
+
+	if limit > 0 && count >= limit {
+		is_exceed_limit = 1
+	} else {
+		is_exceed_limit = 0
+	}
+
 	curr := count
 	slog.Info("Tally incremented",
 		"curr_count", curr,
 		"remote_addr", r.RemoteAddr,
 	)
 
-	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address) VALUES (?, ?, ?)",
-		curr, time.Now(), r.RemoteAddr)
+	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address, limit_value, is_exceed_limit) VALUES (?, ?, ?, ?, ?)",
+		curr, time.Now(), r.RemoteAddr, limit, is_exceed_limit)
 	if err != nil {
 		slog.Error("Database insert failed", "error", err)
 	} else {
@@ -45,6 +55,7 @@ func incrementHandle(w http.ResponseWriter, r *http.Request) {
 
 func decrementHandle(w http.ResponseWriter, r *http.Request) {
 	var err error
+	var is_exceed_limit int
 
 	mu.Lock()
 	count--
@@ -62,8 +73,14 @@ func decrementHandle(w http.ResponseWriter, r *http.Request) {
 		"remote_addr", r.RemoteAddr,
 	)
 
-	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address) VALUES (?, ?, ?)",
-		curr, time.Now(), r.RemoteAddr)
+	if limit > 0 && count >= limit {
+		is_exceed_limit = 1
+	} else {
+		is_exceed_limit = 0
+	}
+
+	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address, limit_value, is_exceed_limit) VALUES (?, ?, ?, ?, ?)",
+		curr, time.Now(), r.RemoteAddr, limit, is_exceed_limit)
 	if err != nil {
 		slog.Error("Database insert failed", "error", err)
 	} else {
@@ -86,6 +103,16 @@ func currHandle(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d", curr)
 }
 
+func setLimitHandle(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	limit, _ = strconv.Atoi(r.URL.Query().Get("value"))
+	curr := limit
+
+	mu.Unlock()
+
+	fmt.Fprintf(w, "%d", curr)
+}
+
 func midnightReset() {
 	for {
 		now := time.Now()
@@ -97,8 +124,8 @@ func midnightReset() {
 		count = 0
 
 		_, err := db.Exec(
-			"INSERT INTO history (total, created_at, ip_address) VALUES (?, ?, ?)",
-			curr, time.Now(), "MIDNIGHT_RESET",
+			"INSERT INTO history (total, created_at, ip_address, limit_value) VALUES (?, ?, ?, ?)",
+			curr, time.Now(), "MIDNIGHT_RESET", limit,
 		)
 		if err != nil {
 			slog.Error("Midnight reset: database insert failed", "error", err)
@@ -127,7 +154,9 @@ func main() {
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	total INTEGER,
 	created_at DATETIME,
-	ip_address TEXT
+	ip_address TEXT,
+	limit_value INTEGER,
+	is_exceed_limit INTEGER
 	)`)
 	if err != nil {
 		slog.Error("Cannot create database", "error", err)
@@ -146,6 +175,7 @@ func main() {
 	http.HandleFunc("/increment", incrementHandle)
 	http.HandleFunc("/decrement", decrementHandle)
 	http.HandleFunc("/curr", currHandle)
+	http.HandleFunc("/limit", setLimitHandle)
 	slog.Info("Server-",
 		"port", port,
 		"status", "ready",
