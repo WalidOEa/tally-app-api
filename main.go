@@ -113,6 +113,14 @@ func setLimitHandle(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d", curr)
 }
 
+func getLimitHandle(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	curr := limit
+	mu.Unlock()
+
+	fmt.Fprintf(w, "%d", curr)
+}
+
 func midnightReset() {
 	for {
 		now := time.Now()
@@ -176,6 +184,7 @@ func main() {
 	http.HandleFunc("/decrement", decrementHandle)
 	http.HandleFunc("/curr", currHandle)
 	http.HandleFunc("/limit", setLimitHandle)
+	http.HandleFunc("/limit/curr", getLimitHandle)
 	slog.Info("Server-",
 		"port", port,
 		"status", "ready",
