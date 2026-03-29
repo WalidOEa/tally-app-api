@@ -29,7 +29,7 @@ func incrementHandle(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	count++
 
-	if limit > 0 && count >= limit {
+	if limit > 0 && count > limit {
 		is_exceed_limit = 1
 	} else {
 		is_exceed_limit = 0
@@ -73,7 +73,7 @@ func decrementHandle(w http.ResponseWriter, r *http.Request) {
 		"remote_addr", r.RemoteAddr,
 	)
 
-	if limit > 0 && count >= limit {
+	if limit > 0 && count > limit {
 		is_exceed_limit = 1
 	} else {
 		is_exceed_limit = 0
@@ -173,11 +173,20 @@ func main() {
 		slog.Info("Created database (if not exists)")
 	}
 
+	// Update frontend count
 	err = db.QueryRow("SELECT total FROM history ORDER BY id DESC LIMIT 1").Scan(&count)
 	if err != nil {
 		slog.Info("No history found, starting anew")
 	} else {
 		slog.Info("Found history")
+	}
+
+	// Update frontend limit
+	err = db.QueryRow("SELECT limit_value FROM history WHERE limit_value > 0 ORDER BY id DESC LIMIT 1").Scan(&limit)
+	if err != nil {
+		slog.Info("No limit found, starting with no limit")
+	} else {
+		slog.Info("Found limit", "limit", limit)
 	}
 
 	http.HandleFunc("/increment", incrementHandle)
