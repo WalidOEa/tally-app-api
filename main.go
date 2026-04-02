@@ -41,8 +41,8 @@ func incrementHandle(w http.ResponseWriter, r *http.Request) {
 		"remote_addr", r.RemoteAddr,
 	)
 
-	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address, limit_value, is_exceed_limit) VALUES (?, ?, ?, ?, ?)",
-		curr, time.Now(), r.RemoteAddr, limit, is_exceed_limit)
+	_, err = db.Exec("INSERT INTO history (total, created_at, limit_value, is_exceed_limit) VALUES (?, ?, ?, ?)",
+		curr, time.Now(), limit, is_exceed_limit)
 	if err != nil {
 		slog.Error("Database insert failed", "error", err)
 	} else {
@@ -79,8 +79,8 @@ func decrementHandle(w http.ResponseWriter, r *http.Request) {
 		is_exceed_limit = 0
 	}
 
-	_, err = db.Exec("INSERT INTO history (total, created_at, ip_address, limit_value, is_exceed_limit) VALUES (?, ?, ?, ?, ?)",
-		curr, time.Now(), r.RemoteAddr, limit, is_exceed_limit)
+	_, err = db.Exec("INSERT INTO history (total, created_at, limit_value, is_exceed_limit) VALUES (?, ?, ?, ?)",
+		curr, time.Now(), limit, is_exceed_limit)
 	if err != nil {
 		slog.Error("Database insert failed", "error", err)
 	} else {
@@ -108,7 +108,6 @@ func setLimitHandle(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	limit, _ = strconv.Atoi(r.URL.Query().Get("value"))
 	curr := limit
-
 	mu.Unlock()
 
 	fmt.Fprintf(w, "%d", curr)
@@ -127,7 +126,6 @@ func midnightReset() {
 		now := time.Now()
 		//next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 		next := now.Add(1 * time.Minute)
-
 		time.Sleep(time.Until(next))
 
 		mu.Lock()
@@ -135,8 +133,8 @@ func midnightReset() {
 		count = 0
 
 		_, err := db.Exec(
-			"INSERT INTO history (total, created_at, ip_address, limit_value) VALUES (?, ?, ?, ?)",
-			curr, time.Now(), "MIDNIGHT_RESET", limit,
+			"INSERT INTO history (total, created_at, limit_value) VALUES (?, ?, ?)",
+			curr, time.Now(), limit,
 		)
 		if err != nil {
 			slog.Error("Midnight reset: database insert failed", "error", err)
@@ -171,7 +169,6 @@ func main() {
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	total INTEGER,
 	created_at DATETIME,
-	ip_address TEXT,
 	limit_value INTEGER,
 	is_exceed_limit INTEGER
 	)`)
