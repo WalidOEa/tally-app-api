@@ -144,9 +144,15 @@ func midnightReset() {
 	}
 }
 
+func pingHandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "ok")
+	slog.Info("Pong", "remote_addr", r.RemoteAddr)
+}
+
 func main() {
 	var err error
 	db, err = sql.Open("sqlite", "tally.db")
+
 	if err != nil {
 		slog.Error("Cannot open database", "error", err)
 		os.Exit(1)
@@ -189,6 +195,7 @@ func main() {
 		slog.Info("Found limit", "limit", limit)
 	}
 
+	http.HandleFunc("/ping", pingHandle)
 	http.HandleFunc("/increment", incrementHandle)
 	http.HandleFunc("/decrement", decrementHandle)
 	http.HandleFunc("/curr", currHandle)
