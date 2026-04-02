@@ -94,6 +94,7 @@ func decrementHandle(w http.ResponseWriter, r *http.Request) {
 func currHandle(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	curr := count
+
 	slog.Info("Fetched current count",
 		"curr_count", curr,
 		"remote_addr", r.RemoteAddr,
@@ -124,7 +125,9 @@ func getLimitHandle(w http.ResponseWriter, r *http.Request) {
 func midnightReset() {
 	for {
 		now := time.Now()
-		next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+		//next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+		next := now.Add(1 * time.Minute)
+
 		time.Sleep(time.Until(next))
 
 		mu.Lock()
